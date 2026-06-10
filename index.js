@@ -101,6 +101,7 @@ let preMuteVolume = 0.8;
 
 // Audio Object
 const audio = new Audio();
+audio.crossOrigin = "anonymous"; // Fix Web Audio API silence / CORS issues on GitHub Pages
 audio.src = TRACKS[activeIndex].src;
 audio.volume = currentVolume;
 
