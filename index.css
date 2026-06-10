@@ -5,7 +5,7 @@
     --color-lime: #a3e635; /* glowing lime */
     --color-white: #ffffff;
     --color-text-secondary: #9ca3af;
-    --font-heading: 'Orbitron', sans-serif;
+    --font-heading: 'Space Grotesk', sans-serif; /* Changed from Orbitron to support Vietnamese characters in track titles */
     --font-body: 'Inter', sans-serif;
     --font-mono: 'Space Grotesk', sans-serif;
 }
@@ -106,7 +106,7 @@ body.theme-container {
 
 /* Brand Boxed Logo */
 .brand-logo {
-    font-family: var(--font-heading);
+    font-family: 'Orbitron', sans-serif; /* Retain Orbitron for the brand logo */
     font-weight: 900;
     font-size: 1.25rem;
     letter-spacing: 2px;
