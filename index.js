@@ -53,13 +53,13 @@ const volumeHandle = document.getElementById("volume-handle");
 // Apply dynamic configuration values
 function applyConfig() {
     if (!window.CONFIG) return;
-    
+
     // Brand Logo
     const brandLogo = document.querySelector(".brand-logo");
     if (brandLogo && window.CONFIG.brandName) {
         brandLogo.textContent = window.CONFIG.brandName;
     }
-    
+
     // Social links
     const fbLink = document.getElementById("nav-fb");
     if (fbLink && window.CONFIG.socials.facebook) fbLink.href = window.CONFIG.socials.facebook;
@@ -101,7 +101,10 @@ let preMuteVolume = 0.8;
 
 // Audio Object
 const audio = new Audio();
-audio.crossOrigin = "anonymous"; // Fix Web Audio API silence / CORS issues on GitHub Pages
+// Enable CORS only for http/https hosting environments (prevents local file:// security errors)
+if (window.location.protocol.startsWith("http")) {
+    audio.crossOrigin = "anonymous";
+}
 audio.src = TRACKS[activeIndex].src;
 audio.volume = currentVolume;
 
@@ -120,7 +123,7 @@ const PARTICLE_COUNT = 50;
 function resize() {
     particleCanvas.width = window.innerWidth;
     particleCanvas.height = window.innerHeight;
-    
+
     const visSize = Math.min(700, window.innerWidth - 20);
     visualizerCanvas.width = visSize;
     visualizerCanvas.height = visSize;
@@ -240,11 +243,11 @@ animateParticles();
 /* --- Cylinder Carousel Logic --- */
 function updateCarousel() {
     const total = TRACKS.length;
-    
+
     // Assign Cylinder skews based on index relative to activeIndex
     slides.forEach(slide => {
         const index = parseInt(slide.getAttribute("data-index"));
-        
+
         let diff = index - activeIndex;
         // Wrap diff into range [-1, 2]
         while (diff > 2) diff -= total;
@@ -252,7 +255,7 @@ function updateCarousel() {
 
         // Reset slide classes
         slide.className = "carousel-slide";
-        
+
         if (diff === 0) {
             slide.classList.add("center");
         } else if (diff === 1) {
@@ -277,10 +280,10 @@ function updateCarousel() {
         const track = TRACKS[activeIndex];
         metaTitle.textContent = track.title;
         trackArtistBottom.textContent = track.artist;
-        
+
         // Update custom CSS color variables globally
         document.documentElement.style.setProperty('--color-lime', track.color);
-        
+
         metaPanel.style.opacity = 1;
         metaPanel.style.transform = 'translateY(0)';
     }, 250);
@@ -348,7 +351,7 @@ stage.addEventListener("touchstart", dragStart, { passive: true });
 function dragStart(e) {
     isDragging = true;
     startX = e.type === "mousedown" ? e.pageX : e.touches[0].pageX;
-    
+
     window.addEventListener("mousemove", dragMove);
     window.addEventListener("touchmove", dragMove, { passive: true });
     window.addEventListener("mouseup", dragEnd);
@@ -362,10 +365,10 @@ function dragMove(e) {
 function dragEnd(e) {
     if (!isDragging) return;
     isDragging = false;
-    
+
     const endX = e.type === "mouseup" ? e.pageX : e.changedTouches[0].pageX;
     const diff = endX - startX;
-    
+
     // Snapping sensitivity (swipe at least 50px)
     if (Math.abs(diff) > 50) {
         if (diff > 0) {
@@ -374,7 +377,7 @@ function dragEnd(e) {
             rotateNext();
         }
     }
-    
+
     window.removeEventListener("mousemove", dragMove);
     window.removeEventListener("touchmove", dragMove);
     window.removeEventListener("mouseup", dragEnd);
@@ -388,6 +391,9 @@ function setupAudioEngine() {
 
     function togglePlayback() {
         initAudioContext();
+        if (audioCtx && audioCtx.state === "suspended") {
+            audioCtx.resume();
+        }
         if (audio.paused) {
             audio.play().then(() => {
                 updatePlayPauseState(true);
@@ -473,10 +479,10 @@ function setupAudioEngine() {
         const rect = progressContainer.getBoundingClientRect();
         const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         const clickPercent = clickX / rect.width;
-        
+
         // Update audio currentTime directly
         audio.currentTime = clickPercent * audio.duration;
-        
+
         // Instant visual feedback during scrubbing
         const percent = clickPercent * 100;
         progressBar.style.width = `${percent}%`;
@@ -486,6 +492,23 @@ function setupAudioEngine() {
 
     // Autoplay Next song when ended
     audio.addEventListener("ended", rotateNext);
+
+    // Audio error event debugging
+    audio.addEventListener("error", (e) => {
+        const err = audio.error;
+        let msg = "Unknown error";
+        if (err) {
+            switch (err.code) {
+                case 1: msg = "MEDIA_ERR_ABORTED (Playback aborted)"; break;
+                case 2: msg = "MEDIA_ERR_NETWORK (Network download error)"; break;
+                case 3: msg = "MEDIA_ERR_DECODE (Decoding failed)"; break;
+                case 4: msg = "MEDIA_ERR_SRC_NOT_SUPPORTED (Source format not supported or file not found)"; break;
+            }
+            if (err.message) msg += " - " + err.message;
+        }
+        console.error("Audio failed to load:", msg, "Source URL:", audio.src);
+        alert("Audio load failed!\nURL: " + audio.src + "\nError: " + msg + "\n\nPlease ensure you have uploaded the assets folder with correct music files.");
+    });
 
     // Volume Adjustment & Drag support
     if (volumeSliderContainer && volumeBtn && volumeBar && volumeHandle) {
@@ -552,12 +575,12 @@ function setupAudioEngine() {
         if (percent > 0) {
             isMuted = false;
         }
-        
+
         // Update UI fills
         const percentVal = percent * 100;
         volumeBar.style.width = `${percentVal}%`;
         volumeHandle.style.left = `${percentVal}%`;
-        
+
         // Dynamic speaker icon path matching level
         if (percent === 0) {
             volumeIcon.innerHTML = `<path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`;
@@ -620,7 +643,7 @@ function renderVisualizer() {
     const cx = w / 2;
     const cy = h / 2;
     const isDesktop = window.innerWidth >= 900;
-    
+
     // Radial visualizer ring backing the center slide card
     const innerRadius = isDesktop ? 270 : 190;
     const bufferLength = analyser.frequencyBinCount;
