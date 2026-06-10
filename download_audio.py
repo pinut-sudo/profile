@@ -39,7 +39,7 @@ def main():
     
     songs = [
         ("https://www.youtube.com/watch?v=niPkap1ozUA", "song1.mp3"),
-        ("https://www.youtube.com/watch?v=Z6Oi4V0TSUY", "song2.mp3"),
+        ("https://youtu.be/_uDDSFzrheY", "song2.mp3"),
         ("https://www.youtube.com/watch?v=7s1033v2DTQ", "song3.mp3"),
         ("https://youtu.be/FriPUsEsxc8", "song4.mp3"),
     ]

@@ -28,12 +28,12 @@ const CONFIG = {
             image: "https://img.youtube.com/vi/niPkap1ozUA/maxresdefault.jpg"
         },
         {
-            title: "ĐỪNG VỀ TRỄ",
-            artist: "LĂNG LD x OBITO",
+            title: "THE WAY LIFE GOES",
+            artist: "LIL UZI VERT",
             theme: "cyan",
             color: "#22d3ee",
             src: "assets/song2.mp3",
-            image: "https://img.youtube.com/vi/Z6Oi4V0TSUY/maxresdefault.jpg"
+            image: "https://img.youtube.com/vi/_uDDSFzrheY/maxresdefault.jpg"
         },
         {
             title: "DOUBT",
