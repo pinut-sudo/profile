@@ -108,11 +108,11 @@ body.theme-container {
 .brand-logo {
     font-family: 'Orbitron', sans-serif; /* Retain Orbitron for the brand logo */
     font-weight: 900;
-    font-size: 1.25rem;
-    letter-spacing: 2px;
+    font-size: 1.05rem;
+    letter-spacing: 1.5px;
     color: var(--color-white);
-    border: 2px solid var(--color-white);
-    padding: 4px 14px;
+    border: 1.5px solid var(--color-white);
+    padding: 3px 10px;
     text-transform: uppercase;
     text-decoration: none;
     transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
@@ -714,16 +714,42 @@ body.theme-container {
         height: 180px;
     }
 
+    .main-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .brand-logo {
+        font-size: 0.85rem;
+        padding: 2px 7px;
+        border-width: 1px;
+        letter-spacing: 1px;
+    }
+
+    .header-socials {
+        gap: 0.5rem;
+    }
+
+    .nav-social {
+        padding: 0.35rem;
+    }
+
+    .nav-social svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
     .card-info-panel {
         left: 16px;
         bottom: 16px;
         right: 16px;
     }
-    
-
 
     .btn-launch {
-        display: none; /* Hide play button inside card on tiny screens */
+        display: inline-block; /* Show play button inside card on tiny screens */
+        margin-top: 8px;
+        padding: 6px 14px;
+        font-size: 9px;
+        letter-spacing: 1px;
     }
 
     .track-title {
