@@ -147,6 +147,7 @@ body.theme-container {
 .nav-social svg {
     width: 1.25rem;
     height: 1.25rem;
+    fill: currentColor;
 }
 
 /* Specific brand colors and glows for social buttons */
@@ -684,8 +685,9 @@ body.theme-container {
 }
 
 @media (max-width: 640px) {
-    body.theme-container {
-        overflow: auto;
+    html, body.theme-container {
+        overflow-x: hidden;
+        overflow-y: auto;
     }
     
     .main-content {
@@ -736,6 +738,7 @@ body.theme-container {
     .nav-social svg {
         width: 1rem;
         height: 1rem;
+        fill: currentColor;
     }
 
     .card-info-panel {
