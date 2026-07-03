@@ -17,27 +17,17 @@
 
 <body class="theme-container">
 
-    <!-- Topographic Background Layer -->
-    <div class="topographic-bg">
-        <svg viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-100 200 C300 150, 600 350, 1000 100 C1200 0, 1500 50, 1600 100" stroke="#84cc16"
-                stroke-width="2" />
-            <path d="M-100 280 C320 230, 620 430, 1020 180 C1220 80, 1520 130, 1620 180" stroke="#84cc16"
-                stroke-width="1.5" />
-            <path d="M-100 360 C340 310, 640 510, 1040 260 C1240 160, 1540 210, 1640 260" stroke="#84cc16"
-                stroke-width="1.2" />
-            <path d="M-100 440 C360 390, 660 590, 1060 340 C1260 240, 1560 290, 1660 340" stroke="#84cc16"
-                stroke-width="1" />
-            <path d="M-100 520 C380 470, 680 670, 1080 420 C1280 320, 1580 370, 1700 420" stroke="#84cc16"
-                stroke-width="0.8" opacity="0.8" />
-            <path d="M-100 600 C400 550, 700 750, 1100 500 C1300 400, 1600 450, 1700 500" stroke="#84cc16"
-                stroke-width="0.6" opacity="0.6" />
-
-            <path d="M200 900 C400 750, 800 850, 1100 650 C1300 550, 1500 700, 1600 800" stroke="#84cc16"
-                stroke-width="1" />
-            <path d="M250 900 C430 790, 830 890, 1130 690 C1330 590, 1530 740, 1630 840" stroke="#84cc16"
-                stroke-width="0.8" />
-        </svg>
+    <!-- Dynamic Space/Galaxy Background Layers -->
+    <div class="space-bg-container">
+        <!-- Track 0: Lime — Deep green aurora nebula -->
+        <div class="space-bg-layer active" id="bg-layer-0" style="background-image: url('https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2560&q=85');"></div>
+        <!-- Track 1: Cyan — Blue Earth horizon from ISS -->
+        <div class="space-bg-layer" id="bg-layer-1" style="background-image: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=2560&q=85');"></div>
+        <!-- Track 2: Magenta — Pink/purple nebula -->
+        <div class="space-bg-layer" id="bg-layer-2" style="background-image: url('https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?auto=format&fit=crop&w=2560&q=85');"></div>
+        <!-- Track 3: Yellow — Golden milky way -->
+        <div class="space-bg-layer" id="bg-layer-3" style="background-image: url('https://images.unsplash.com/photo-1507400492013-162706c8c05e?auto=format&fit=crop&w=2560&q=85');"></div>
+        <div class="space-bg-overlay"></div>
     </div>
 
     <!-- Cosmic Background Particles -->
@@ -48,10 +38,19 @@
 
     <!-- Header Navigation -->
     <header class="main-header">
-        <!-- Brand Logo mimicking boxed layout -->
-        <a href="#" class="brand-logo" title="Home">
-            PiZanNut
-        </a>
+        <!-- Brand Logo and Visitor Counter Container -->
+        <div class="brand-container">
+            <a href="#" class="brand-logo" title="Home">
+                PiZanNut
+            </a>
+            <div class="visitor-counter" id="visitor-counter" title="Page visits and live users online">
+                <span class="visitor-count-text">VISITS: <span id="visitor-val">124,532</span></span>
+                <span class="live-dot-container">
+                    <span class="live-pulse-dot"></span>
+                    <span class="live-count"><span id="live-val">12</span> online</span>
+                </span>
+            </div>
+        </div>
 
         <!-- Social Media Navigation (Facebook, TikTok, Discord, Instagram) -->
         <nav class="header-socials">

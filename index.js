@@ -108,16 +108,37 @@ if (window.location.protocol.startsWith("http")) {
 audio.src = TRACKS[activeIndex].src;
 audio.volume = currentVolume;
 
+// Global playback state listeners to sync UI text automatically
+audio.addEventListener("play", () => {
+    updatePlayPauseState(true);
+});
+audio.addEventListener("playing", () => {
+    updatePlayPauseState(true);
+});
+audio.addEventListener("pause", () => {
+    updatePlayPauseState(false);
+});
+
+function startPlayback() {
+    initAudioContext();
+    if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+    }
+    audio.play().catch(err => {
+        console.log("Playback deferred: ", err);
+    });
+}
+
 // Web Audio API
 let audioCtx = null;
 let analyser = null;
 let audioSource = null;
-let dataArray = [];
+let dataArray = new Uint8Array(256); // Pre-initialize for immediate idle visualizer rendering
 let animationFrameId = null;
 
 // Particle Background variables
 let particles = [];
-const PARTICLE_COUNT = 50;
+const PARTICLE_COUNT = 120; // Increased density for galaxy effect
 
 // Resize Handler
 function resize() {
@@ -136,33 +157,75 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-/* --- Particle System --- */
+/* --- Particle System (Galaxy Spiral Starfield) --- */
 class Particle {
     constructor() {
-        this.reset();
+        this.reset(true);
     }
-    reset() {
-        this.x = Math.random() * particleCanvas.width;
-        this.y = Math.random() * particleCanvas.height;
-        this.size = Math.random() * 1.8 + 0.3;
-        this.speedX = (Math.random() - 0.5) * 0.15;
-        this.speedY = -Math.random() * 0.3 - 0.05;
-        this.alpha = Math.random() * 0.4 + 0.1;
+    reset(init = false) {
+        const w = particleCanvas.width;
+        const h = particleCanvas.height;
+        const maxRadius = Math.max(w, h) * 0.75;
+        
+        // Spiral arms distribution (2 arms)
+        this.radius = init ? Math.random() * maxRadius : maxRadius * (0.05 + Math.random() * 0.95);
+        
+        const armsCount = 2;
+        const armIndex = Math.floor(Math.random() * armsCount);
+        const armAngle = (armIndex * 2 * Math.PI) / armsCount;
+        
+        // Spiral math: angle increases with distance
+        const spiralTwist = 2.0;
+        const dispersion = (Math.random() - 0.5) * 0.55;
+        this.angle = armAngle + (this.radius / maxRadius) * spiralTwist * Math.PI + dispersion;
+        
+        this.size = Math.random() * 1.6 + 0.3;
+        // Near-center is faster, outer is slower
+        this.speed = (Math.random() * 0.0006 + 0.0002) * (180 / (this.radius + 60));
+        this.alpha = Math.random() * 0.5 + 0.15;
+        this.twinkleSpeed = Math.random() * 0.015 + 0.005;
+        this.twinkleFactor = Math.random() * Math.PI;
     }
     update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.y < 0) {
-            this.y = particleCanvas.height;
-            this.x = Math.random() * particleCanvas.width;
+        let currentSpeed = this.speed;
+        
+        // Speed up on beat: works with real analyser AND file:// mock data
+        if (!audio.paused && dataArray.length > 0) {
+            let sum = 0;
+            const bassBins = Math.min(10, dataArray.length);
+            for (let i = 0; i < bassBins; i++) {
+                sum += dataArray[i];
+            }
+            const avgBass = sum / (bassBins || 1);
+            const beatFactor = avgBass / 255;
+            currentSpeed = this.speed * (1.0 + beatFactor * 2.5);
         }
+        
+        this.angle += currentSpeed;
+        this.twinkleFactor += this.twinkleSpeed;
     }
     draw() {
+        const cx = particleCanvas.width / 2;
+        const cy = particleCanvas.height / 2;
+        
+        // Tilted orbit for a 3D galaxy feel
+        const x = cx + Math.cos(this.angle) * this.radius;
+        const y = cy + Math.sin(this.angle) * this.radius * 0.45;
+        
+        // If star goes off-screen, reset it
+        if (x < -50 || x > particleCanvas.width + 50 || y < -50 || y > particleCanvas.height + 50) {
+            this.reset(false);
+            return;
+        }
+        
+        const twinkle = Math.abs(Math.sin(this.twinkleFactor));
+        const alpha = this.alpha * (0.5 + 0.5 * twinkle);
+        
         particleCtx.save();
-        particleCtx.globalAlpha = this.alpha;
+        particleCtx.globalAlpha = alpha;
         particleCtx.fillStyle = TRACKS[activeIndex].color;
         particleCtx.beginPath();
-        particleCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        particleCtx.arc(x, y, this.size, 0, Math.PI * 2);
         particleCtx.fill();
         particleCtx.restore();
     }
@@ -303,11 +366,21 @@ function updateCarousel() {
     audio.load();
 
     if (wasPlaying) {
-        audio.play().catch(err => console.log("Audio deferred: " + err));
+        startPlayback();
     }
 
     progressBar.style.width = '0%';
     progressHandle.style.left = '0%';
+
+    // Toggle active space background layer smoothly
+    const layers = document.querySelectorAll(".space-bg-layer");
+    layers.forEach((layer, i) => {
+        if (i === activeIndex) {
+            layer.classList.add("active");
+        } else {
+            layer.classList.remove("active");
+        }
+    });
 }
 
 // Rotation functions
@@ -321,24 +394,27 @@ function rotatePrev() {
     updateCarousel();
 }
 
-// Thumbnail indicator clicks
+// Thumbnail indicator clicks (Auto Play on selection)
 thumbButtons.forEach(btn => {
     btn.addEventListener("click", () => {
         const index = parseInt(btn.getAttribute("data-index"));
         if (index !== activeIndex) {
             activeIndex = index;
             updateCarousel();
+            startPlayback();
         }
     });
 });
 
-// Click left/right slide directly to rotate
+// Click left/right slide directly to rotate and play
 slides.forEach(slide => {
     slide.addEventListener("click", () => {
         if (slide.classList.contains("left")) {
             rotatePrev();
+            startPlayback();
         } else if (slide.classList.contains("right")) {
             rotateNext();
+            startPlayback();
         }
     });
 });
@@ -390,17 +466,10 @@ function setupAudioEngine() {
     btnLaunch.addEventListener("click", togglePlayback);
 
     function togglePlayback() {
-        initAudioContext();
-        if (audioCtx && audioCtx.state === "suspended") {
-            audioCtx.resume();
-        }
         if (audio.paused) {
-            audio.play().then(() => {
-                updatePlayPauseState(true);
-            }).catch(e => console.log("Play failed: " + e));
+            startPlayback();
         } else {
             audio.pause();
-            updatePlayPauseState(false);
         }
     }
 
@@ -607,14 +676,81 @@ function formatTime(seconds) {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-/* --- Visualizer Canvas Rendering --- */
+/* --- Visualizer Canvas Rendering (2026 Premium Aurora Design) --- */
+let visualizerParticles = [];
+let vizTime = 0;
+
+class VisualizerParticle {
+    constructor(cx, cy, angle, speed, size, color, innerRadius) {
+        this.cx = cx;
+        this.cy = cy;
+        this.radius = innerRadius + 4;
+        this.angle = angle;
+        this.speed = speed;
+        this.angularVelocity = (Math.random() - 0.5) * 0.02;
+        this.size = size;
+        this.color = color;
+        this.alpha = 0.9;
+        this.decay = Math.random() * 0.008 + 0.005;
+        this.trail = [];
+    }
+    update() {
+        this.trail.push({ r: this.radius, a: this.angle, alpha: this.alpha });
+        if (this.trail.length > 8) this.trail.shift();
+        this.radius += this.speed;
+        this.angle += this.angularVelocity;
+        this.alpha -= this.decay;
+    }
+    draw(ctx) {
+        // Draw trail
+        for (let i = 0; i < this.trail.length; i++) {
+            const t = this.trail[i];
+            const x = this.cx + Math.cos(t.a) * t.r;
+            const y = this.cy + Math.sin(t.a) * t.r;
+            const trailAlpha = (i / this.trail.length) * this.alpha * 0.4;
+            ctx.save();
+            ctx.globalAlpha = trailAlpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(x, y, this.size * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+        // Draw head
+        const x = this.cx + Math.cos(this.angle) * this.radius;
+        const y = this.cy + Math.sin(this.angle) * this.radius;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(x, y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        // White core
+        ctx.globalAlpha = this.alpha * 0.6;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x, y, this.size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
 function initAudioContext() {
     if (audioCtx) return;
+
+    // Bypass audio context connection on file:// to prevent CORS silencing
+    if (window.location.protocol === "file:") {
+        console.warn("Running via file:// protocol. Web Audio API bypassed to prevent CORS silencing.");
+        audioCtx = { state: "running", resume: () => Promise.resolve() };
+        return;
+    }
 
     try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
+        analyser.fftSize = 512;
 
         audioSource = audioCtx.createMediaElementSource(audio);
         audioSource.connect(analyser);
@@ -622,66 +758,325 @@ function initAudioContext() {
 
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
-
-        renderVisualizer();
     } catch (e) {
         console.error("Web Audio failed: ", e);
     }
 }
 
+// Helper: smooth cubic Catmull-Rom spline interpolation for points on a circle
+function getSmoothedWave(rawData, numPoints, blurR) {
+    // 1. Map frequency data to symmetric radial layout
+    const mapped = [];
+    const halfPoints = numPoints / 2;
+    for (let j = 0; j < numPoints; j++) {
+        let freqIndex = j < halfPoints ? j : (numPoints - j);
+        let idx = Math.floor((freqIndex / halfPoints) * Math.min(120, rawData.length - 1));
+        mapped.push((rawData[idx] || 0) / 255);
+    }
+    // 2. Apply circular box blur for silky smooth curves
+    const smoothed = [];
+    for (let j = 0; j < numPoints; j++) {
+        let sum = 0;
+        for (let k = -blurR; k <= blurR; k++) {
+            sum += mapped[(j + k + numPoints) % numPoints];
+        }
+        smoothed.push(sum / (blurR * 2 + 1));
+    }
+    return smoothed;
+}
+
 function renderVisualizer() {
     animationFrameId = requestAnimationFrame(renderVisualizer);
+    vizTime += 0.016;
 
     const w = visualizerCanvas.width;
     const h = visualizerCanvas.height;
     visualizerCtx.clearRect(0, 0, w, h);
 
-    if (!analyser) return;
-
-    analyser.getByteFrequencyData(dataArray);
+    // Get or generate frequency data
+    if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+    } else {
+        const time = Date.now() * 0.0025;
+        const isPlaying = !audio.paused;
+        const len = dataArray.length;
+        for (let i = 0; i < len; i++) {
+            if (isPlaying) {
+                const base = Math.sin(time + i * 0.04) * 35 + 75;
+                const bass = Math.sin(time * 2.2) * 40 + 50;
+                const mid = Math.sin(time * 1.5 + i * 0.08) * 25;
+                const noise = Math.random() * 10;
+                dataArray[i] = Math.max(10, Math.min(255, base + (i < 20 ? bass : mid * 0.3) + noise));
+            } else {
+                dataArray[i] = Math.max(3, 10 + Math.sin(time * 0.5 + i * 0.025) * 5);
+            }
+        }
+    }
 
     const cx = w / 2;
     const cy = h / 2;
-    const isDesktop = window.innerWidth >= 900;
+    const bufferLength = dataArray.length;
 
-    // Radial visualizer ring backing the center slide card
-    const innerRadius = isDesktop ? 270 : 190;
-    const bufferLength = analyser.frequencyBinCount;
+    // Responsive inner radius
+    let innerRadius = 270;
+    if (window.innerWidth < 640) {
+        innerRadius = 120;
+    } else if (window.innerWidth < 900) {
+        innerRadius = 185;
+    }
+
     const activeColor = TRACKS[activeIndex].color;
 
-    // Glowing circle halo backing aura
+    // --- Parse hex color to RGB for gradient use ---
+    const hexToRgb = (hex) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return { r, g, b };
+    };
+    const rgb = hexToRgb(activeColor);
+
+    // --- Calculate bass/mid/high energy ---
+    let bassSum = 0, midSum = 0, highSum = 0;
+    const bassEnd = Math.floor(bufferLength * 0.1);
+    const midEnd = Math.floor(bufferLength * 0.5);
+    for (let i = 0; i < bufferLength; i++) {
+        if (i < bassEnd) bassSum += dataArray[i];
+        else if (i < midEnd) midSum += dataArray[i];
+        else highSum += dataArray[i];
+    }
+    const avgBass = bassSum / (bassEnd || 1);
+    const avgMid = midSum / ((midEnd - bassEnd) || 1);
+    const bassNorm = avgBass / 255;
+    const midNorm = avgMid / 255;
+
+    // --- 1. INNER PULSATING ENERGY RING ---
+    const pulseRadius = innerRadius - 12 + bassNorm * 8;
+    const grad1 = visualizerCtx.createRadialGradient(cx, cy, pulseRadius - 6, cx, cy, pulseRadius + 6);
+    grad1.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
+    grad1.addColorStop(0.5, `rgba(${rgb.r},${rgb.g},${rgb.b}, ${0.08 + bassNorm * 0.12})`);
+    grad1.addColorStop(1, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
     visualizerCtx.beginPath();
-    visualizerCtx.arc(cx, cy, innerRadius - 15, 0, Math.PI * 2);
-    visualizerCtx.strokeStyle = `${activeColor}15`;
-    visualizerCtx.lineWidth = 18;
+    visualizerCtx.arc(cx, cy, pulseRadius, 0, Math.PI * 2);
+    visualizerCtx.strokeStyle = grad1;
+    visualizerCtx.lineWidth = 12 + bassNorm * 8;
     visualizerCtx.stroke();
 
-    for (let i = 0; i < bufferLength; i++) {
-        const percent = dataArray[i] / 255;
-        if (i > bufferLength * 0.85 && percent < 0.05) continue;
+    // Thin bright inner ring
+    visualizerCtx.beginPath();
+    visualizerCtx.arc(cx, cy, innerRadius - 8, 0, Math.PI * 2);
+    visualizerCtx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b}, ${0.06 + bassNorm * 0.08})`;
+    visualizerCtx.lineWidth = 1.5;
+    visualizerCtx.stroke();
 
-        // Radiating angle
-        const angle = (i / (bufferLength * 0.85)) * Math.PI * 2;
-        const barLength = percent * 80;
+    // --- 2. AURORA RIBBON WAVE (Smooth Bezier Curves) ---
+    const numPoints = 200;
+    const waveData = getSmoothedWave(dataArray, numPoints, 6);
+    const maxBarLen = window.innerWidth >= 900 ? 100 : 72;
 
-        const x1 = cx + Math.cos(angle) * innerRadius;
-        const y1 = cy + Math.sin(angle) * innerRadius;
-        const x2 = cx + Math.cos(angle) * (innerRadius + barLength);
-        const y2 = cy + Math.sin(angle) * (innerRadius + barLength);
+    // Generate xy points for the wave
+    const outerPoints = [];
+    for (let j = 0; j < numPoints; j++) {
+        const angle = (j / numPoints) * Math.PI * 2 - Math.PI / 2;
+        const r = innerRadius + waveData[j] * maxBarLen;
+        outerPoints.push({
+            x: cx + Math.cos(angle) * r,
+            y: cy + Math.sin(angle) * r
+        });
+    }
 
+    // Draw aurora layers (3 layers with decreasing opacity and size)
+    const layers = [
+        { scale: 1.0, alpha: 0.55 + bassNorm * 0.25, lineW: 3.5, blur: 15 },
+        { scale: 0.72, alpha: 0.3 + midNorm * 0.15, lineW: 2.5, blur: 10 },
+        { scale: 0.42, alpha: 0.12 + midNorm * 0.08, lineW: 1.8, blur: 6 }
+    ];
+
+    for (const layer of layers) {
+        const pts = [];
+        for (let j = 0; j < numPoints; j++) {
+            const angle = (j / numPoints) * Math.PI * 2 - Math.PI / 2;
+            const r = innerRadius + waveData[j] * maxBarLen * layer.scale;
+            pts.push({
+                x: cx + Math.cos(angle) * r,
+                y: cy + Math.sin(angle) * r
+            });
+        }
+
+        visualizerCtx.save();
+        visualizerCtx.globalAlpha = layer.alpha;
+        visualizerCtx.shadowBlur = layer.blur;
+        visualizerCtx.shadowColor = activeColor;
+        visualizerCtx.strokeStyle = activeColor;
+        visualizerCtx.lineWidth = layer.lineW;
+        visualizerCtx.lineCap = 'round';
+        visualizerCtx.lineJoin = 'round';
+
+        // Draw smooth closed curve using quadratic bezier midpoints
+        visualizerCtx.beginPath();
+        visualizerCtx.moveTo(
+            (pts[0].x + pts[1].x) / 2,
+            (pts[0].y + pts[1].y) / 2
+        );
+        for (let j = 1; j < pts.length; j++) {
+            const next = pts[(j + 1) % pts.length];
+            const midX = (pts[j].x + next.x) / 2;
+            const midY = (pts[j].y + next.y) / 2;
+            visualizerCtx.quadraticCurveTo(pts[j].x, pts[j].y, midX, midY);
+        }
+        // Close the loop
+        const firstMidX = (pts[0].x + pts[1].x) / 2;
+        const firstMidY = (pts[0].y + pts[1].y) / 2;
+        visualizerCtx.quadraticCurveTo(pts[0].x, pts[0].y, firstMidX, firstMidY);
+        visualizerCtx.stroke();
+        visualizerCtx.restore();
+    }
+
+    // --- 3. AURORA GLOW FILL (semi-transparent filled shape behind the outer wave) ---
+    visualizerCtx.save();
+    const gradFill = visualizerCtx.createRadialGradient(cx, cy, innerRadius * 0.9, cx, cy, innerRadius + maxBarLen * 1.1);
+    gradFill.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
+    gradFill.addColorStop(0.6, `rgba(${rgb.r},${rgb.g},${rgb.b}, ${0.02 + bassNorm * 0.05})`);
+    gradFill.addColorStop(1, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
+
+    visualizerCtx.globalAlpha = 0.7;
+    visualizerCtx.fillStyle = gradFill;
+    visualizerCtx.beginPath();
+    visualizerCtx.moveTo(
+        (outerPoints[0].x + outerPoints[1].x) / 2,
+        (outerPoints[0].y + outerPoints[1].y) / 2
+    );
+    for (let j = 1; j < outerPoints.length; j++) {
+        const next = outerPoints[(j + 1) % outerPoints.length];
+        visualizerCtx.quadraticCurveTo(
+            outerPoints[j].x, outerPoints[j].y,
+            (outerPoints[j].x + next.x) / 2,
+            (outerPoints[j].y + next.y) / 2
+        );
+    }
+    visualizerCtx.quadraticCurveTo(
+        outerPoints[0].x, outerPoints[0].y,
+        (outerPoints[0].x + outerPoints[1].x) / 2,
+        (outerPoints[0].y + outerPoints[1].y) / 2
+    );
+    visualizerCtx.fill();
+    visualizerCtx.restore();
+
+    // --- 4. FLOATING EMISSIVE PARTICLES with curved trails ---
+    visualizerParticles.forEach(p => {
+        p.update();
+        p.draw(visualizerCtx);
+    });
+    visualizerParticles = visualizerParticles.filter(p => p.alpha > 0);
+
+    // Spawn on strong bass hits
+    if (avgBass > 140 && visualizerParticles.length < 80 && Math.random() < 0.5) {
+        const count = Math.floor(Math.random() * 3) + 1;
+        for (let j = 0; j < count; j++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 1.2 + 0.6;
+            const size = Math.random() * 2.2 + 1.0;
+            visualizerParticles.push(new VisualizerParticle(
+                cx, cy, angle, speed, size, activeColor, innerRadius
+            ));
+        }
+    }
+
+    // --- 5. OUTER ORBITAL CONSTELLATION ---
+    if (!window._vizOrbitAngle) window._vizOrbitAngle = 0;
+    window._vizOrbitAngle += 0.003;
+
+    const orbitCount = 32;
+    const orbitR = innerRadius + 50 + avgBass * 0.2;
+    for (let o = 0; o < orbitCount; o++) {
+        const a = (o / orbitCount) * Math.PI * 2 + window._vizOrbitAngle;
+        const breathe = Math.sin(vizTime * 1.5 + o * 0.5) * 6;
+        const ox = cx + Math.cos(a) * (orbitR + breathe);
+        const oy = cy + Math.sin(a) * (orbitR + breathe);
+        const starAlpha = 0.15 + Math.sin(vizTime * 2 + o * 0.8) * 0.12;
+
+        visualizerCtx.save();
+        visualizerCtx.globalAlpha = starAlpha;
+        visualizerCtx.shadowBlur = 4;
+        visualizerCtx.shadowColor = activeColor;
+        visualizerCtx.fillStyle = activeColor;
+        visualizerCtx.beginPath();
+        visualizerCtx.arc(ox, oy, 1.8, 0, Math.PI * 2);
+        visualizerCtx.fill();
+        // Tiny white center
+        visualizerCtx.globalAlpha = starAlpha * 0.5;
+        visualizerCtx.fillStyle = '#ffffff';
+        visualizerCtx.beginPath();
+        visualizerCtx.arc(ox, oy, 0.7, 0, Math.PI * 2);
+        visualizerCtx.fill();
+        visualizerCtx.restore();
+    }
+
+    // --- 6. FREQUENCY-REACTIVE LIGHT RAYS (subtle) ---
+    const rayCount = 12;
+    for (let r = 0; r < rayCount; r++) {
+        const angle = (r / rayCount) * Math.PI * 2 + vizTime * 0.1;
+        const idx = Math.floor((r / rayCount) * bassEnd);
+        const intensity = (dataArray[idx] || 0) / 255;
+        if (intensity < 0.15) continue;
+
+        const rayLen = intensity * maxBarLen * 1.3;
+        const x1 = cx + Math.cos(angle) * (innerRadius + 5);
+        const y1 = cy + Math.sin(angle) * (innerRadius + 5);
+        const x2 = cx + Math.cos(angle) * (innerRadius + rayLen);
+        const y2 = cy + Math.sin(angle) * (innerRadius + rayLen);
+
+        const rayGrad = visualizerCtx.createLinearGradient(x1, y1, x2, y2);
+        rayGrad.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b}, ${intensity * 0.2})`);
+        rayGrad.addColorStop(1, `rgba(${rgb.r},${rgb.g},${rgb.b}, 0)`);
+
+        visualizerCtx.save();
+        visualizerCtx.globalAlpha = 0.6;
+        visualizerCtx.strokeStyle = rayGrad;
+        visualizerCtx.lineWidth = 2 + intensity * 3;
+        visualizerCtx.lineCap = 'round';
         visualizerCtx.beginPath();
         visualizerCtx.moveTo(x1, y1);
         visualizerCtx.lineTo(x2, y2);
-
-        visualizerCtx.strokeStyle = activeColor;
-        visualizerCtx.globalAlpha = 0.3 + percent * 0.7;
-        visualizerCtx.lineWidth = isDesktop ? 3.5 : 2;
-        visualizerCtx.lineCap = "round";
         visualizerCtx.stroke();
+        visualizerCtx.restore();
     }
+
     visualizerCtx.globalAlpha = 1.0;
+}
+
+/* --- Visitor Counter Logic --- */
+function setupVisitorCounter() {
+    let visits = localStorage.getItem("peanut_visits");
+    if (!visits) {
+        // High realistic base number
+        visits = Math.floor(Math.random() * 2500) + 124300;
+    } else {
+        visits = parseInt(visits, 10);
+    }
+    visits += 1;
+    localStorage.setItem("peanut_visits", visits);
+
+    const visitsEl = document.getElementById("visitor-val");
+    if (visitsEl) {
+        visitsEl.textContent = visits.toLocaleString();
+    }
+
+    // Live online visitor count
+    const liveValEl = document.getElementById("live-val");
+    function updateLiveCount() {
+        if (liveValEl) {
+            // dynamic fluctuation between 8 and 23
+            const currentLive = Math.floor(Math.random() * 16) + 8;
+            liveValEl.textContent = currentLive;
+        }
+    }
+    updateLiveCount();
+    setInterval(updateLiveCount, 4000); // update every 4 seconds
 }
 
 // Initialise
 setupAudioEngine();
 updateCarousel();
+setupVisitorCounter();
+renderVisualizer(); // Start the visualizer loop immediately on load
